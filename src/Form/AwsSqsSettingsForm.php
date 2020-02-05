@@ -168,6 +168,14 @@ class AwsSqsSettingsForm extends ConfigFormBase {
       '#description' => $this->t("Amazon Web Services Version. 'latest' recommended"),
     ];
 
+    $serialize = $config->get('serialize_messages');
+    $form['serialize_messages'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Serialize Messages'),
+      '#default_value' => isset($serialize) ? $serialize : TRUE ,
+      '#description' => $this->t("Check if messages should be serialized."),
+    ];
+
     if (!$default_queue) {
       $default_queue = 'queue.database';
     }
@@ -185,18 +193,14 @@ class AwsSqsSettingsForm extends ConfigFormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $config = $this->config('aws_sqs.settings');
-    $config->set('aws_sqs_aws_key', $form_state->getValue('aws_sqs_aws_key'))
+    $config->set('aws_sqs_aws_key', $form_state->getValue('aws_sqs_aws_key'));
+    $config->set('aws_sqs_aws_secret', $form_state->getValue('aws_sqs_aws_secret'));
+    $config->set('aws_sqs_waittimeseconds', $form_state->getValue('aws_sqs_waittimeseconds'));
+    $config->set('aws_sqs_claimtimeout', $form_state->getValue('aws_sqs_claimtimeout'));
+    $config->set('aws_sqs_region', $form_state->getValue('aws_sqs_region'));
+    $config->set('aws_sqs_version', $form_state->getValue('version'));
+    $config->set('serialize_messages', $form_state->getValue('serialize_messages'))
       ->save();
-    $config->set('aws_sqs_aws_secret', $form_state->getValue('aws_sqs_aws_secret'))
-      ->save();
-    $config->set('aws_sqs_waittimeseconds', $form_state->getValue('aws_sqs_waittimeseconds'))
-      ->save();
-    $config->set('aws_sqs_claimtimeout', $form_state->getValue('aws_sqs_claimtimeout'))
-      ->save();
-    $config->set('aws_sqs_region', $form_state->getValue('aws_sqs_region'))
-      ->save();
-
-    $config->save();
     parent::submitForm($form, $form_state);
   }
 

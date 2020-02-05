@@ -2,7 +2,7 @@
 
 namespace Drupal\aws_sqs;
 
-use Aws\Common\Credentials\Credentials;
+use Aws\Credentials\Credentials;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Aws\Sqs\SqsClient;
@@ -89,6 +89,7 @@ class AwsSqsQueueFactory {
       $queue->createQueue();
       $queue->setClaimTimeout($this->config->get('aws_sqs_claimtimeout'));
       $queue->setWaitTimeSeconds($this->config->get('aws_sqs_waittimeseconds'));
+      $queue->setSerializeMessages($this->config->get('serialize_messages'));
       $this->initializedQueues[$name] = $queue;
     }
 

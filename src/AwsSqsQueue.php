@@ -2,7 +2,7 @@
 
 namespace Drupal\aws_sqs;
 
-use Aws\Common\Client\AwsClientInterface;
+use Aws\AwsClientInterface;
 use Drupal\aws_sqs\Model\QueueItem;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Queue\ReliableQueueInterface;
@@ -67,6 +67,13 @@ class AwsSqsQueue implements ReliableQueueInterface {
   protected $logger;
 
   /**
+   * Stores if the stored messages are serialized or not..
+   *
+   * @var bool
+   */
+  protected $serializeMessages;
+
+  /**
    * AwsSqsQueue constructor.
    *
    * @param string $name
@@ -80,6 +87,16 @@ class AwsSqsQueue implements ReliableQueueInterface {
     $this->name = $name;
     $this->client = $client;
     $this->logger = $logger;
+  }
+
+  /**
+   * Set if messages in this queue should be serialized or not.
+   *
+   * @param bool $serialize
+   *   TRUE if messages are/should be serialized, false otherwise.
+   */
+  public function setSerializeMessages(bool $serialize) {
+    $this->serializeMessages = $serialize;
   }
 
   /**
@@ -97,7 +114,10 @@ class AwsSqsQueue implements ReliableQueueInterface {
    *   A unique ID if the item was successfully created and was (best effort)
    *   added to the queue, otherwise FALSE.
    */
-  public function createItem($data, $serialize = TRUE) {
+  public function createItem($data, $serialize = NULL) {
+    if ($serialize === NULL) {
+      $serialize = isset($this->serializeMessages) ? $this->serializeMessages : TRUE;
+    }
     // @todo Check if data size limit is 64kb (Validate, link to documentation).
     /** @var \Guzzle\Service\Resource\Model $result */
     $result = $this->client->sendMessage([
@@ -149,10 +169,13 @@ class AwsSqsQueue implements ReliableQueueInterface {
    *   On success we return an item object. If the queue is unable to claim an
    *   item it returns false.
    */
-  public function claimItem($lease_time = 0, $unserialize = TRUE) {
+  public function claimItem($lease_time = 0, $unserialize = NULL) {
+    if ($unserialize === NULL) {
+      $unserialize = isset($this->serializeMessages) ? $this->serializeMessages : TRUE;
+    }
     // This is important to support blocking calls to the queue system.
-    $waitTimeSeconds = $this->getWaitTimeSeconds();
-    $claimTimeout = ($lease_time) ? $lease_time : $this->getClaimTimeout();
+    $waitTimeSeconds = (int) $this->getWaitTimeSeconds();
+    $claimTimeout = (int) ($lease_time) ? $lease_time : $this->getClaimTimeout();
     // If our given claimTimeout is smaller than the allowed waiting seconds
     // set the waitTimeSeconds to this value. This is to avoid a long call when
     // the worker that called claimItem only has a finite amount of time to wait
@@ -191,7 +214,7 @@ class AwsSqsQueue implements ReliableQueueInterface {
     $item->setItemId($message['MessageId']);
     $item->setReceiptHandle($message['ReceiptHandle']);
 
-    return $item;
+    return new QueueItemWrapper($item);
   }
 
   /**
@@ -214,6 +237,9 @@ class AwsSqsQueue implements ReliableQueueInterface {
    *   TRUE if the item has been released, FALSE otherwise.
    */
   public function releaseItem($item) {
+    if (!($item instanceof QueueItem) && ($item instanceof QueueItemWrapper)) {
+      $item = $item->getQueueItem();
+    }
     /** @var \Guzzle\Service\Resource\Model $response */
     $response = $this->client->changeMessageVisibility([
       'QueueUrl' => $this->getQueueUrl(),
@@ -236,6 +262,9 @@ class AwsSqsQueue implements ReliableQueueInterface {
    * @throws \Exception
    */
   public function deleteItem($item) {
+    if (!($item instanceof QueueItem) && ($item instanceof QueueItemWrapper)) {
+      $item = $item->getQueueItem();
+    }
     if ($item->getReceiptHandle()) {
       throw new \Exception("An item that needs to be deleted requires a handle ID");
     }
@@ -252,9 +281,30 @@ class AwsSqsQueue implements ReliableQueueInterface {
    * Invokes SqsClient::createQueue().
    *  http://docs.aws.amazon.com/aws-sdk-php-2/latest/class-Aws.Sqs.SqsClient.html#_createQueue.
    */
-  public function createQueue() {
+  public function createQueue($fifo = TRUE) {
+    // Check first if it exists.
+    $existing_queues = $this->client->listQueues(['QueueNamePrefix' => $this->name]);
+    $existing_result = $existing_queues->get('QueueUrls');
+    if (!empty($existing_result)) {
+      foreach ($existing_result as $url) {
+        $length = strlen($this->name);
+        if (substr($url, -$length) === $this->name) {
+          $this->setQueueUrl($url);
+          return;
+        }
+      }
+    }
+    $params = [
+      'QueueName' => $this->name,
+    ];
+    if ($fifo) {
+      $params['Attributes'] = [
+        'FifoQueue' => true,
+        'ContentBasedDeduplication' => true,
+      ];
+    }
     /** @var \Guzzle\Service\Resource\Model $response */
-    $response = $this->client->createQueue(['QueueName' => $this->name]);
+    $response = $this->client->createQueue($params);
     $this->setQueueUrl($response->get('QueueUrl'));
   }
 
