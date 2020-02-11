@@ -96,4 +96,11 @@ class AwsSqsQueueFactory {
     return $this->initializedQueues[$name];
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  public function get($name) {
+    return $this->getQueue($name);
+  }
+
 }
