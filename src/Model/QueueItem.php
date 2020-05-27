@@ -75,7 +75,7 @@ class QueueItem {
    *   The receipt handle.
    */
   public function getReceiptHandle() {
-    return $this->itemId;
+    return $this->receiptHandle;
   }
 
   /**
