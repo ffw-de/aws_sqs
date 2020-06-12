@@ -265,7 +265,7 @@ class AwsSqsQueue implements ReliableQueueInterface {
     if (!($item instanceof QueueItem) && ($item instanceof QueueItemWrapper)) {
       $item = $item->getQueueItem();
     }
-    if ($item->getReceiptHandle()) {
+    if (!$item->getReceiptHandle()) {
       throw new \Exception("An item that needs to be deleted requires a handle ID");
     }
 
