@@ -62,7 +62,7 @@ class AwsSqsQueueFactory {
   protected function getClient() {
     if (!isset($this->client)) {
       $credentials = new Credentials($this->config->get('aws_sqs_aws_key'), $this->config->get('aws_sqs_aws_secret'));
-      $this->client = SqsClient::factory([
+      $this->client = new SqsClient([
         'credentials' => $credentials,
         'region' => $this->config->get('aws_sqs_region', 'us-east-1'),
         'version' => $this->config->get('aws_sqs_version', 'latest'),
